@@ -9,14 +9,20 @@
     <meta name="apple-mobile-web-app-title" content="Cosmic Music Player">
     <link rel="apple-touch-icon" href="Cosmic.png">
     <link rel="manifest" href="manifest.json">
-    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net" defer></script>
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; text-align: center; padding: 40px 20px 20px 20px; margin: 0; }
+        body { background: #000000; color: black; font-family: sans-serif; text-align: center; padding: 40px 20px 20px 20px; margin: 0; }
         .player-card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .btn { background: #ff4500; border: none; padding: 12px 24px; margin: 8px; color: white; border-radius: 25px; font-size: 15px; cursor: pointer; font-weight: bold; }
+        
+        /* Updated: Buttons changed to a nice vibrant green bubble look */
+        .btn { background: #00ff66; border: none; padding: 12px 24px; margin: 8px; color: black; border-radius: 25px; font-size: 15px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(0,255,102,0.2); }
         .btn-active { background: #00ffcc; color: black; }
+        
         #track-title { font-size: 20px; margin-bottom: 10px; color: #00ffcc; }
-        #playlist-select { background: #2a2a2a; color: white; border: 1px solid #444; padding: 10px; border-radius: 10px; width: 100%; margin-top: 15px; font-size: 16px; }
+        
+        /* Updated: Dropdown list menu text color forced to a clean blue */
+        #playlist-select { background: #2a2a2a; color: #0066ff; border: 1px solid #444; padding: 10px; border-radius: 10px; width: 100%; margin-top: 15px; font-size: 16px; font-weight: bold; }
+        
         .upload-section { margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; }
         #file-input { display: none; }
         #upload-status { font-size: 12px; color: #aaa; margin-top: 5px; }
@@ -25,7 +31,7 @@
 <body>
     <div class="player-card">
         <h1>🌌 Cosmic Music Player</h1>
-        <div id="track-title">Loading track...</div>
+        <div id="track-title">Connecting to Cloud...</div>
         <audio id="audio" style="width: 100%; margin-top: 15px;"></audio>
         
         <div>
@@ -41,7 +47,7 @@
         <select id="playlist-select" onchange="playTrackByIndex(parseInt(this.value))"></select>
 
         <div class="upload-section">
-            <label for="file-input" class="btn" style="background: #333; display: inline-block;">👥 Shared Group Upload</label>
+            <label for="file-input" class="btn" style="background: #222; color: #00ff66; display: inline-block; border: 2px solid #00ff66;">👥 Shared Group Upload</label>
             <input type="file" id="file-input" accept="audio/*" multiple onchange="handleCloudUpload(event)">
             <div id="upload-status"></div>
         </div>
@@ -51,8 +57,7 @@
         const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
         const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
         
-        // FIX: Removed the double namespace initialization error
-        const supabase = supabase.createClient ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let supabase;
         let playlist = [];
         let index = 0, isShuffle = false, loopMode = 0;
         const player = document.getElementById('audio');
@@ -60,15 +65,26 @@
         const playPauseBtn = document.getElementById('play-pause-btn');
         const statusDiv = document.getElementById('upload-status');
 
+        function initSupabase() {
+            if (window.supabase) {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                fetchLivePlaylist();
+                setupRealtime();
+            } else {
+                setTimeout(initSupabase, 200);
+            }
+        }
+
         async function fetchLivePlaylist() {
             try {
                 const { data, error } = await supabase.from('playlist').select('*').order('id', { ascending: true });
                 if (error) throw error;
                 playlist = data || [];
                 updateUI();
+                if(playlist.length === 0) document.getElementById('track-title').innerText = "Empty Playlist";
             } catch (err) {
-                console.error("Database connection failed:", err);
-                document.getElementById('track-title').innerText = "Database Error";
+                console.error(err);
+                document.getElementById('track-title').innerText = "Network Latency Error";
             }
         }
 
@@ -86,10 +102,7 @@
         }
 
         function loadTrack(i) {
-            if (!playlist || playlist.length === 0) {
-                document.getElementById('track-title').innerText = "Empty Playlist";
-                return;
-            }
+            if (!playlist || playlist.length === 0) return;
             index = i;
             selectBox.value = i;
             document.getElementById('track-title').innerText = playlist[index].title;
@@ -123,7 +136,6 @@
             if (loopMode === 2) { btn.innerText = "🔁 Loop: ALL"; btn.classList.add('btn-active'); }
         }
 
-        // FIX: Converted the accidental Python 'def' into native async JS function syntax
         async function handleCloudUpload(event) {
             const files = event.target.files;
             if (!files || !files.length) return;
@@ -132,7 +144,6 @@
                 const file = files[i];
                 const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
                 const fileName = `${Date.now()}_${file.name}`;
-                
                 statusDiv.innerText = `Uploading: ${cleanTitle}...`;
 
                 try {
@@ -140,30 +151,29 @@
                     if (uploadError) throw uploadError;
 
                     const { data: linkData } = supabase.storage.from('Songs').getPublicUrl(fileName);
-                    const publicUrl = linkData.publicUrl;
-
-                    const { error: dbError } = await supabase.from('playlist').insert([{ title: cleanTitle, url: publicUrl }]);
-                    if (dbError) throw dbError;
+                    await supabase.from('playlist').insert([{ title: cleanTitle, url: linkData.publicUrl }]);
                 } catch (err) {
                     console.error(err);
-                    statusDiv.innerText = "Upload failed! Check bucket name case sensitivity.";
+                    statusDiv.innerText = "Upload failed!";
                     return;
                 }
             }
-            statusDiv.innerText = "✨ Success! Added to multiplayer playlist.";
+            statusDiv.innerText = "✨ Success!";
             await fetchLivePlaylist();
         }
 
-        try {
-            supabase.channel('schema-db-changes')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
-                    playlist.push(payload.new);
-                    updateUI();
-                }).subscribe();
-        } catch(e) { console.log("Realtime connection error:", e); }
+        function setupRealtime() {
+            try {
+                supabase.channel('schema-db-changes')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
+                        playlist.push(payload.new);
+                        updateUI();
+                    }).subscribe();
+            } catch(e) { console.log(e); }
+        }
 
         player.onended = nextTrack;
-        window.onload = fetchLivePlaylist;
+        window.onload = initSupabase;
     </script>
 </body>
 </html>
