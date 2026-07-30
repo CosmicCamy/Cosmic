@@ -1,0 +1,17 @@
+{
+  "short_name": "Cosmic",
+  "name": "Cosmic Music Player",
+  "icons": [
+    {
+      "src": "Cosmic.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/Camy-s-Projects/index.html",
+  "scope": "/Camy-s-Projects/",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "display": "standalone",
+  "orientation": "portrait"
+}
