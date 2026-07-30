@@ -8,8 +8,8 @@
       "type": "image/png"
     }
   ],
-  "start_url": "/Camy-s-Projects/index.html",
-  "scope": "/Camy-s-Projects/",
+  "start_url": "/Cosmic/index.html",
+  "scope": "/Cosmic/",
   "background_color": "#121212",
   "theme_color": "#121212",
   "display": "standalone",
