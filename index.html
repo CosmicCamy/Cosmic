@@ -8,11 +8,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Cosmic Music Player">
     <link rel="apple-touch-icon" href="Cosmic.png">
-    
-    <!-- Optimized: Added a ?v=2 cache buster token link to force iOS to drop the old path memory -->
-    <link rel="manifest" href="manifest.json?v=2">
-    
-    <script src="https://jsdelivr.net" defer></script>
+    <link rel="manifest" href="manifest.json?v=3">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { background: #121212; color: white; font-family: sans-serif; text-align: center; padding: 40px 20px 20px 20px; margin: 0; }
         .player-card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
@@ -51,10 +48,11 @@
     </div>
 
     <script>
+        // Use your real URL credentials instead of the placeholder text below
         const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
         const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
         
-        let supabase;
+        let clientInstance;
         let playlist = [];
         let index = 0, isShuffle = false, loopMode = 0;
         const player = document.getElementById('audio');
@@ -63,8 +61,9 @@
         const statusDiv = document.getElementById('upload-status');
 
         function initSupabase() {
-            if (window.supabase) {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            // FIX: Removed the scope layout assignment error blocking iOS browser engines completely
+            if (window.supabase && window.supabase.createClient) {
+                clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 fetchLivePlaylist();
                 setupRealtime();
             } else {
@@ -74,14 +73,14 @@
 
         async function fetchLivePlaylist() {
             try {
-                const { data, error } = await supabase.from('playlist').select('*').order('id', { ascending: true });
+                const { data, error } = await clientInstance.from('playlist').select('*').order('id', { ascending: true });
                 if (error) throw error;
                 playlist = data || [];
                 updateUI();
                 if(playlist.length === 0) document.getElementById('track-title').innerText = "Empty Playlist";
             } catch (err) {
                 console.error(err);
-                document.getElementById('track-title').innerText = "Network Latency Error";
+                document.getElementById('track-title').innerText = "Database Synchronization Error";
             }
         }
 
@@ -144,11 +143,11 @@
                 statusDiv.innerText = `Uploading: ${cleanTitle}...`;
 
                 try {
-                    const { data: uploadData, error: uploadError } = await supabase.storage.from('Songs').upload(fileName, file);
+                    const { data: uploadData, error: uploadError } = await clientInstance.storage.from('Songs').upload(fileName, file);
                     if (uploadError) throw uploadError;
 
-                    const { data: linkData } = supabase.storage.from('Songs').getPublicUrl(fileName);
-                    await supabase.from('playlist').insert([{ title: cleanTitle, url: linkData.publicUrl }]);
+                    const { data: linkData } = clientInstance.storage.from('Songs').getPublicUrl(fileName);
+                    await clientInstance.from('playlist').insert([{ title: cleanTitle, url: linkData.publicUrl }]);
                 } catch (err) {
                     console.error(err);
                     statusDiv.innerText = "Upload failed!";
@@ -161,7 +160,7 @@
 
         function setupRealtime() {
             try {
-                supabase.channel('schema-db-changes')
+                clientInstance.channel('schema-db-changes')
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
                         playlist.push(payload.new);
                         updateUI();
