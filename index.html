@@ -132,31 +132,45 @@
             if (loopMode === 2) { btn.innerText = "🔁 Loop: ALL"; btn.classList.add('btn-active'); }
         }
 
-        async function handleCloudUpload(event) {
-            const files = event.target.files;
-            if (!files || !files.length) return;
+async function handleCloudUpload(event) {
+  const files = event.target.files;
+  if (!files || !files.length) return;
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
+    const fileName = `${Date.now()}_${file.name}`;
+    statusDiv.innerText = `Uploading: ${cleanTitle}...`;
+    
+    try {
+      // FIX 1: Convert to ArrayBuffer to prevent mobile browser payload corruption
+      const fileData = await file.arrayBuffer();
+      
+      // FIX 2: Explicitly pass contentType and turn on upsert override
+      const { data: uploadData, error: uploadError } = await clientInstance.storage
+        .from('Songs')
+        .upload(fileName, fileData, {
+          contentType: file.type || 'audio/x-m4a',
+          upsert: true
+        });
+        
+      if (uploadError) throw uploadError;
+      
+      const { data: linkData } = clientInstance.storage.from('Songs').getPublicUrl(fileName);
+      await clientInstance.from('playlist').insert([{ title: cleanTitle, url: linkData.publicUrl }]);
+      
+    } catch (err) {
+      console.error(err);
+      statusDiv.innerText = "Upload failed!";
+      return;
+    }
+  }
+  
+  statusDiv.innerText = "✨ Success!";
+  await fetchLivePlaylist();
+}
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
-                const fileName = `${Date.now()}_${file.name}`;
-                statusDiv.innerText = `Uploading: ${cleanTitle}...`;
 
-                try {
-                    const { data: uploadData, error: uploadError } = await clientInstance.storage.from('Songs').upload(fileName, file);
-                    if (uploadError) throw uploadError;
-
-                    const { data: linkData } = clientInstance.storage.from('Songs').getPublicUrl(fileName);
-                    await clientInstance.from('playlist').insert([{ title: cleanTitle, url: linkData.publicUrl }]);
-                } catch (err) {
-                    console.error(err);
-                    statusDiv.innerText = "Upload failed!";
-                    return;
-                }
-            }
-            statusDiv.innerText = "✨ Success!";
-            await fetchLivePlaylist();
-        }
 
         function setupRealtime() {
             try {
