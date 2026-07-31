@@ -107,15 +107,42 @@
             player.src = playlist[index].url;
         }
 
-        function playTrackByIndex(i) {
-            loadTrack(i);
-            player.play().then(() => playPauseBtn.innerText = "⏸️ Pause").catch(e => console.log(e));
-        }
+function playTrackByIndex(i) { 
+  loadTrack(i); 
+  
+  // Quick check to wake up the filter if it exists
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
 
-        function togglePlay() {
-            if (player.paused) { player.play(); playPauseBtn.innerText = "⏸️ Pause"; }
-            else { player.pause(); playPauseBtn.innerText = "▶️ Play"; }
-        }
+  player.play().then(() => playPauseBtn.innerText = "⏸%EF%B8%8F Pause").catch(e => console.log(e)); 
+}
+
+let audioCtx = null;
+let audioSrc = null;
+
+function togglePlay() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint: 'playback'
+    });
+    audioSrc = audioCtx.createMediaElementSource(player);
+    audioSrc.connect(audioCtx.destination);
+  }
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  if (player.paused) {
+    player.play();
+    playPauseBtn.innerText = "⏸️ Pause";
+  } else {
+    player.pause();
+    playPauseBtn.innerText = "▶️ Play";
+  }
+}
+
 
         function nextTrack() {
             if (playlist.length === 0) return;
