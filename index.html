@@ -141,11 +141,9 @@ async function handleCloudUpload(event) {
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     
-    // 1. Human-readable title for your drop-down menu
-    const cleanTitle = file.name.replace(/\.[^/.]+$/, ""); 
-    
-    // 2. The RAW file name with a timestamp (No encodeURIComponent used here!)
-    const rawFileName = `${Date.now()}_${file.name}`;
+const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+const rawFileName = `${Date.now()}_${safeName}`;
+
     
     // 3. Force .m4a files to use audio/mp4 so mobile players don't freeze
     let assignedMime = file.type;
