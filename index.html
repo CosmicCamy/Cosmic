@@ -137,55 +137,56 @@
 async function handleCloudUpload(event) {
   const files = event.target.files;
   if (!files || !files.length) return;
-  
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     
-const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-const rawFileName = `${Date.now()}_${safeName}`;
-
+    // 1. Human-readable title for your drop-down menu
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
     
+    // 2. FIX: Strip out all bad characters from the physical filename
+    const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+    const rawFileName = `${Date.now()}_${safeName}`;
+
     // 3. Force .m4a files to use audio/mp4 so mobile players don't freeze
     let assignedMime = file.type;
     if (file.name.endsWith('.m4a')) {
       assignedMime = 'audio/mp4';
     }
-    
+
     statusDiv.innerText = `Uploading: ${cleanTitle}...`;
-    
+
     try {
       const fileData = await file.arrayBuffer();
-      
-      // 4. Pass the raw name directly to Supabase
+
+      // 4. Pass the new safeName variable directly to Supabase Storage
       const { data: uploadData, error: uploadError } = await clientInstance.storage
         .from('Songs')
-        .upload(rawFileName, fileData, {
-          contentType: assignedMime,
-          upsert: true
-        });
-        
+        .upload(rawFileName, fileData, { contentType: assignedMime, upsert: true });
+
       if (uploadError) throw uploadError;
-      
-      // 5. Supabase automatically encodes the special characters safely here
+
+      // 5. Fetch the public URL using the exact same variable name
       const { data: linkData } = clientInstance.storage
         .from('Songs')
         .getPublicUrl(rawFileName);
-        
-      // 6. Save the correct link to your playlist database
+
+      // 6. Save the correct link to your playlist database table
       await clientInstance.from('playlist').insert([
         { title: cleanTitle, url: linkData.publicUrl }
       ]);
-      
+
     } catch (err) {
       console.error(err);
       statusDiv.innerText = "Upload failed!";
-      return;
+      return; // Exit function if an error occurs to prevent infinite loops
     }
   }
-  
+
   statusDiv.innerText = "✨ Success!";
   await fetchLivePlaylist();
 }
+
 
 
 
