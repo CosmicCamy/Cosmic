@@ -49,187 +49,226 @@
         </div>
     </div>
 
-    <script>
-        // Use your real URL credentials instead of the placeholder text below
-        const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
-        
-        let clientInstance;
-        let playlist = [];
-        let index = 0, isShuffle = false, loopMode = 0;
-        const player = document.getElementById('audio');
-        const selectBox = document.getElementById('playlist-select');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const statusDiv = document.getElementById('upload-status');
+<script>
+// Use your real URL credentials instead of the placeholder text below
+const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
 
-        function initSupabase() {
-            // FIX: Removed the scope layout assignment error blocking iOS browser engines completely
-            if (window.supabase && window.supabase.createClient) {
-                clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                fetchLivePlaylist();
-                setupRealtime();
-            } else {
-                setTimeout(initSupabase, 200);
-            }
+let clientInstance;
+let playlist = [];
+let index = 0, isShuffle = false, loopMode = 0;
+const player = document.getElementById('audio');
+const selectBox = document.getElementById('playlist-select');
+const playPauseBtn = document.getElementById('play-pause-btn');
+const statusDiv = document.getElementById('upload-status');
+let wakeLock = null;
+
+function initSupabase() {
+    if (window.supabase && window.supabase.createClient) {
+        clientInstance = window.supabase.createClient(https://jelekafnbepkmblpgcyi.supabase.co, sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj);
+        fetchLivePlaylist();
+        setupRealtime();
+    } else {
+        setTimeout(initSupabase, 200);
+    }
+}
+
+async function fetchLivePlaylist() {
+    try {
+        const { data, error } = await clientInstance.from('playlist').select('*').order('id', { ascending: true });
+        if (error) throw error;
+        playlist = data || [];
+        updateUI();
+        if(playlist.length === 0) document.getElementById('track-title').innerText = "Empty Playlist";
+    } catch (err) {
+        console.error(err);
+        document.getElementById('track-title').innerText = "Database Synchronization Error";
+    }
+}
+
+function updateUI() {
+    const currentVal = selectBox.value;
+    selectBox.innerHTML = '';
+    playlist.forEach((track, i) => {
+        let opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = track.title;
+        selectBox.appendChild(opt);
+    });
+    if(playlist.length > 0 && !player.src) {
+        loadTrack(0);
+    }
+    if(currentVal && currentVal < playlist.length) selectBox.value = currentVal;
+}
+
+function loadTrack(i) {
+    if (!playlist || playlist.length === 0) return;
+    index = i;
+    selectBox.value = i;
+    document.getElementById('track-title').innerText = playlist[index].title;
+    player.src = playlist[index].url;
+    
+    // Update mobile system lock screen controls dynamically
+    updateMediaSession();
+}
+
+async function requestWakeLock() {
+    try {
+        if ('wakeLock' in navigator && !wakeLock) {
+            wakeLock = await navigator.wakeLock.request('screen');
         }
+    } catch (err) {
+        console.log("WakeLock failed:", err.message);
+    }
+}
 
-        async function fetchLivePlaylist() {
-            try {
-                const { data, error } = await clientInstance.from('playlist').select('*').order('id', { ascending: true });
-                if (error) throw error;
-                playlist = data || [];
-                updateUI();
-                if(playlist.length === 0) document.getElementById('track-title').innerText = "Empty Playlist";
-            } catch (err) {
-                console.error(err);
-                document.getElementById('track-title').innerText = "Database Synchronization Error";
-            }
-        }
+function releaseWakeLock() {
+    if (wakeLock) {
+        wakeLock.release().then(() => { wakeLock = null; });
+    }
+}
 
-        function updateUI() {
-            const currentVal = selectBox.value;
-            selectBox.innerHTML = '';
-            playlist.forEach((track, i) => {
-                let opt = document.createElement('option');
-                opt.value = i;
-                opt.innerText = track.title;
-                selectBox.appendChild(opt);
-            });
-            if(playlist.length > 0 && !player.src) { loadTrack(0); }
-            if(currentVal && currentVal < playlist.length) selectBox.value = currentVal;
-        }
+function updateMediaSession() {
+    if ('mediaSession' in navigator && playlist[index]) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: playlist[index].title,
+            artist: "Cosmic Player",
+            album: "Supabase Playlist"
+        });
 
-        function loadTrack(i) {
-            if (!playlist || playlist.length === 0) return;
-            index = i;
-            selectBox.value = i;
-            document.getElementById('track-title').innerText = playlist[index].title;
-            player.src = playlist[index].url;
-        }
+        // Map mobile hardware/lock-screen media buttons directly to your JS functions
+        navigator.mediaSession.setActionHandler('play', () => { togglePlay(); });
+        navigator.mediaSession.setActionHandler('pause', () => { togglePlay(); });
+        navigator.mediaSession.setActionHandler('previoustrack', () => { prevTrack(); });
+        navigator.mediaSession.setActionHandler('nexttrack', () => { nextTrack(); });
+    }
+}
 
-function playTrackByIndex(i) { 
-  loadTrack(i); 
-  
-  // Quick check to wake up the filter if it exists
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-
-  player.play().then(() => playPauseBtn.innerText = "⏸%EF%B8%8F Pause").catch(e => console.log(e)); 
+function playTrackByIndex(i) {
+    loadTrack(i);
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    requestWakeLock();
+    player.play().then(() => {
+        playPauseBtn.innerText = "⏸️ Pause";
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+    }).catch(e => console.log(e));
 }
 
 let audioCtx = null;
 let audioSrc = null;
 
 function togglePlay() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint: 'playback'
-    });
-    audioSrc = audioCtx.createMediaElementSource(player);
-    audioSrc.connect(audioCtx.destination);
-  }
-
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
-
-  if (player.paused) {
-    player.play();
-    playPauseBtn.innerText = "⏸️ Pause";
-  } else {
-    player.pause();
-    playPauseBtn.innerText = "▶️ Play";
-  }
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+        audioSrc = audioCtx.createMediaElementSource(player);
+        audioSrc.connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    if (player.paused) {
+        requestWakeLock();
+        player.play();
+        playPauseBtn.innerText = "⏸️ Pause";
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+    } else {
+        releaseWakeLock();
+        player.pause();
+        playPauseBtn.innerText = "▶️ Play";
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused";
+    }
 }
 
+function nextTrack() {
+    if (playlist.length === 0) return;
+    if (loopMode === 1) {
+        loadTrack(index);
+        player.play();
+    } else if (isShuffle) {
+        playTrackByIndex(Math.floor(Math.random() * playlist.length));
+    } else {
+        playTrackByIndex((index + 1) % playlist.length);
+    }
+}
 
-        function nextTrack() {
-            if (playlist.length === 0) return;
-            if (loopMode === 1) { loadTrack(index); player.play(); }
-            else if (isShuffle) { playTrackByIndex(Math.floor(Math.random() * playlist.length)); }
-            else { playTrackByIndex((index + 1) % playlist.length); }
-        }
+function prevTrack() {
+    if (playlist.length > 0) playTrackByIndex((index - 1 + playlist.length) % playlist.length);
+}
 
-        function prevTrack() { if (playlist.length > 0) playTrackByIndex((index - 1 + playlist.length) % playlist.length); }
-        function toggleShuffle() { isShuffle = !isShuffle; document.getElementById('shuf-btn').classList.toggle('btn-active', isShuffle); }
-        function toggleLoop() {
-            loopMode = (loopMode + 1) % 3;
-            const btn = document.getElementById('loop-btn');
-            if (loopMode === 0) { btn.innerText = "🔁 Loop: OFF"; btn.classList.remove('btn-active'); }
-            if (loopMode === 1) { btn.innerText = "🔂 Loop: SONG"; btn.classList.add('btn-active'); }
-            if (loopMode === 2) { btn.innerText = "🔁 Loop: ALL"; btn.classList.add('btn-active'); }
-        }
+function toggleShuffle() {
+    isShuffle = !isShuffle;
+    document.getElementById('shuf-btn').classList.toggle('btn-active', isShuffle);
+}
+
+function toggleLoop() {
+    loopMode = (loopMode + 1) % 3;
+    const btn = document.getElementById('loop-btn');
+    if (loopMode === 0) {
+        btn.innerText = "🔁 Loop: OFF";
+        btn.classList.remove('btn-active');
+    }
+    if (loopMode === 1) {
+        btn.innerText = "🔂 Loop: SONG";
+        btn.classList.add('btn-active');
+    }
+    if (loopMode === 2) {
+        btn.innerText = "🔁 Loop: ALL";
+        btn.classList.add('btn-active');
+    }
+}
 
 async function handleCloudUpload(event) {
-  const files = event.target.files;
-  if (!files || !files.length) return;
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    
-    // 1. Human-readable title for your drop-down menu
-    const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
-    
-    // 2. FIX: Strip out all bad characters from the physical filename
-    const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
-    const rawFileName = `${Date.now()}_${safeName}`;
-
-    // 3. Force .m4a files to use audio/mp4 so mobile players don't freeze
-    let assignedMime = file.type;
-    if (file.name.endsWith('.m4a')) {
-      assignedMime = 'audio/mp4';
+    const files = event.target.files;
+    if (!files || !files.length) return;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
+        const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+        const rawFileName = `${Date.now()}_${safeName}`;
+        let assignedMime = file.type;
+        if (file.name.endsWith('.m4a')) {
+            assignedMime = 'audio/mp4';
+        }
+        statusDiv.innerText = `Uploading: ${cleanTitle}...`;
+        try {
+            const fileData = await file.arrayBuffer();
+            const { data: uploadData, error: uploadError } = await clientInstance.storage
+                .from('Songs')
+                .upload(rawFileName, fileData, { contentType: assignedMime, upsert: true });
+            if (uploadError) throw uploadError;
+            const { data: linkData } = clientInstance.storage
+                .from('Songs')
+                .getPublicUrl(rawFileName);
+            await clientInstance.from('playlist').insert([
+                { title: cleanTitle, url: linkData.publicUrl }
+            ]);
+        } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "Upload failed!";
+            return;
+        }
     }
-
-    statusDiv.innerText = `Uploading: ${cleanTitle}...`;
-
-    try {
-      const fileData = await file.arrayBuffer();
-
-      // 4. Pass the new safeName variable directly to Supabase Storage
-      const { data: uploadData, error: uploadError } = await clientInstance.storage
-        .from('Songs')
-        .upload(rawFileName, fileData, { contentType: assignedMime, upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      // 5. Fetch the public URL using the exact same variable name
-      const { data: linkData } = clientInstance.storage
-        .from('Songs')
-        .getPublicUrl(rawFileName);
-
-      // 6. Save the correct link to your playlist database table
-      await clientInstance.from('playlist').insert([
-        { title: cleanTitle, url: linkData.publicUrl }
-      ]);
-
-    } catch (err) {
-      console.error(err);
-      statusDiv.innerText = "Upload failed!";
-      return; // Exit function if an error occurs to prevent infinite loops
-    }
-  }
-
-  statusDiv.innerText = "✨ Success!";
-  await fetchLivePlaylist();
+    statusDiv.innerText = "✨ Success!";
+    await fetchLivePlaylist();
 }
 
+function setupRealtime() {
+    try {
+        clientInstance.channel('schema-db-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
+                playlist.push(payload.new);
+                updateUI();
+            }).subscribe();
+    } catch(e) {
+        console.log(e);
+    }
+}
 
+player.onended = nextTrack;
+window.onload = initSupabase;
+</script>
 
-
-
-        function setupRealtime() {
-            try {
-                clientInstance.channel('schema-db-changes')
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
-                        playlist.push(payload.new);
-                        updateUI();
-                    }).subscribe();
-            } catch(e) { console.log(e); }
-        }
-
-        player.onended = nextTrack;
-        window.onload = initSupabase;
-    </script>
 </body>
 </html>
