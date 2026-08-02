@@ -46,8 +46,8 @@
 
 <script>
 // IMPORTANT: Put your actual values inside these quotes!
-const SUPABASE_URL = "YOUR_ACTUAL_SUPABASE_URL";
-const SUPABASE_KEY = "YOUR_ACTUAL_SUPABASE_KEY";
+const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
 
 let clientInstance;
 let playlist = [];
@@ -60,7 +60,7 @@ let wakeLock = null;
 
 function initSupabase() {
     if (window.supabase && window.supabase.createClient) {
-        clientInstance = window.supabase.createClient(, SUPABASE_KEY);
+      clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         fetchLivePlaylist();
         setupRealtime();
     } else {
