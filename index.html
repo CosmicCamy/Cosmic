@@ -45,7 +45,6 @@
     </div> 
 
 <script>
-// IMPORTANT: Put your actual values inside these quotes!
 const SUPABASE_URL = "https://jelekafnbepkmblpgcyi.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Cn0BdRGQCdjOpbWYRfDOPQ_ivhJmZXj";
 
@@ -59,8 +58,9 @@ const statusDiv = document.getElementById('upload-status');
 let wakeLock = null;
 
 function initSupabase() {
+    // RESTORED FAST INSTANT LOAD LINE FROM ORIGINAL CODE
     if (window.supabase && window.supabase.createClient) {
-      clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         fetchLivePlaylist();
         setupRealtime();
     } else {
@@ -112,7 +112,7 @@ async function requestWakeLock() {
             wakeLock = await navigator.wakeLock.request('screen');
         }
     } catch (err) {
-        console.log("WakeLock blocked (requires HTTPS):", err.message);
+        console.log("WakeLock bypassed:", err.message);
     }
 }
 
@@ -141,7 +141,7 @@ function playTrackByIndex(i) {
     loadTrack(i);
     requestWakeLock();
     player.play().then(() => {
-        playPauseBtn.innerText = "\u23F8\uFE0F Pause";
+        playPauseBtn.innerText = "⏸️ Pause";
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
     }).catch(e => console.log(e));
 }
@@ -150,13 +150,13 @@ function togglePlay() {
     if (player.paused) {
         requestWakeLock();
         player.play().then(() => {
-            playPauseBtn.innerText = "\u23F8\uFE0F Pause";
+            playPauseBtn.innerText = "⏸️ Pause";
             if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
         }).catch(e => console.log("Playback failed:", e));
     } else {
         releaseWakeLock();
         player.pause();
-        playPauseBtn.innerText = "\u25B6\uFE0F Play";
+        playPauseBtn.innerText = "▶️ Play";
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused";
     }
 }
