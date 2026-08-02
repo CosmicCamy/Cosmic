@@ -59,7 +59,6 @@ const statusDiv = document.getElementById('upload-status');
 let wakeLock = null;
 
 function initSupabase() {
-    // RESTORED: Your original fallback engine assignment sequence 
     if (window.supabase && window.supabase.createClient) {
         clientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         fetchLivePlaylist();
@@ -103,8 +102,6 @@ function loadTrack(i) {
     selectBox.value = i;
     document.getElementById('track-title').innerText = playlist[index].title;
     player.src = playlist[index].url;
-    
-    // Lock screen media UI synchronization hook
     updateMediaSession();
 }
 
@@ -204,13 +201,11 @@ function toggleLoop() {
 async function handleCloudUpload(event) {
     const files = event.target.files;
     if (!files || !files.length) return;
+    
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
-        // Keeps original title with special characters intact for dropdown text layout
         const cleanTitle = file.name.replace(/\.[^/.]+$/, "");
         
-        // Creates clean safe storage alphanumeric strings 
         const fileExtension = file.name.split('.').pop();
         const secureRandomCode = Math.random().toString(36).substring(2, 10);
         const physicalStorageName = `track_${Date.now()}_${secureRandomCode}.${fileExtension}`;
@@ -223,10 +218,13 @@ async function handleCloudUpload(event) {
         statusDiv.innerText = `Uploading: ${cleanTitle}...`;
         
         try {
-            // RESTORED: Directly uploading raw file references to keep performance clean
+            // FIX: Pack audio into a Blob array buffer so Supabase accepts special characters smoothly
+            const fileDataBuffer = await file.arrayBuffer();
+            const storageBlob = new Blob([fileDataBuffer], { type: assignedMime });
+            
             const { data: uploadData, error: uploadError } = await clientInstance.storage
                 .from('Songs')
-                .upload(physicalStorageName, file, { 
+                .upload(physicalStorageName, storageBlob, { 
                     contentType: assignedMime, 
                     upsert: true 
                 });
@@ -249,8 +247,12 @@ async function handleCloudUpload(event) {
             return; 
         }
     }
-    
     statusDiv.innerText = "✨ Success!";
     await fetchLivePlaylist();
 }
+
+function setupRealtime() {
+    try {
+        clientInstance.channel('schema-db-changes')
+
 
