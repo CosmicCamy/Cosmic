@@ -108,7 +108,6 @@ function loadTrack(i) {
     document.getElementById('track-title').innerText = playlist[index].title;
     player.src = playlist[index].url;
     
-    // Update mobile system lock screen controls dynamically
     updateMediaSession();
 }
 
@@ -118,7 +117,7 @@ async function requestWakeLock() {
             wakeLock = await navigator.wakeLock.request('screen');
         }
     } catch (err) {
-        console.log("WakeLock failed:", err.message);
+        console.log("WakeLock blocked (requires HTTPS):", err.message);
     }
 }
 
@@ -136,7 +135,6 @@ function updateMediaSession() {
             album: "Supabase Playlist"
         });
 
-        // Map mobile hardware/lock-screen media buttons directly to your JS functions
         navigator.mediaSession.setActionHandler('play', () => { togglePlay(); });
         navigator.mediaSession.setActionHandler('pause', () => { togglePlay(); });
         navigator.mediaSession.setActionHandler('previoustrack', () => { prevTrack(); });
@@ -146,9 +144,6 @@ function updateMediaSession() {
 
 function playTrackByIndex(i) {
     loadTrack(i);
-    if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
     requestWakeLock();
     player.play().then(() => {
         playPauseBtn.innerText = "⏸️ Pause";
@@ -156,23 +151,13 @@ function playTrackByIndex(i) {
     }).catch(e => console.log(e));
 }
 
-let audioCtx = null;
-let audioSrc = null;
-
 function togglePlay() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-        audioSrc = audioCtx.createMediaElementSource(player);
-        audioSrc.connect(audioCtx.destination);
-    }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
     if (player.paused) {
         requestWakeLock();
-        player.play();
-        playPauseBtn.innerText = "⏸️ Pause";
-        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+        player.play().then(() => {
+            playPauseBtn.innerText = "⏸️ Pause";
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+        }).catch(e => console.log("Playback failed:", e));
     } else {
         releaseWakeLock();
         player.pause();
@@ -269,6 +254,7 @@ function setupRealtime() {
 player.onended = nextTrack;
 window.onload = initSupabase;
 </script>
+
 
 </body>
 </html>
