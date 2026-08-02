@@ -218,7 +218,6 @@ async function handleCloudUpload(event) {
         statusDiv.innerText = `Uploading: ${cleanTitle}...`;
         
         try {
-            // FIX: Pack audio into a Blob array buffer so Supabase accepts special characters smoothly
             const fileDataBuffer = await file.arrayBuffer();
             const storageBlob = new Blob([fileDataBuffer], { type: assignedMime });
             
@@ -250,6 +249,31 @@ async function handleCloudUpload(event) {
     statusDiv.innerText = "✨ Success!";
     await fetchLivePlaylist();
 }
+
+function setupRealtime() {
+    try {
+        clientInstance.channel('schema-db-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'playlist' }, payload => {
+                playlist.push(payload.new);
+                updateUI();
+            }).subscribe();
+    } catch(e) {
+        console.log(e);
+    }
+}
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker active:', reg.scope))
+            .catch(err => console.log('Service Worker error:', err));
+    });
+}
+
+player.onended = nextTrack;
+window.onload = initSupabase;
+</script>
+
 
 function setupRealtime() {
     try {
